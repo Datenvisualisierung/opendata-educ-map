@@ -1,3 +1,5 @@
+//based on https://github.com/yurukov/opendata-educ-map
+
 var geo = null;
 var amounts = null;
 var j=null;
@@ -31,46 +33,73 @@ var svg = d3.select("#chart").append("svg")
 
 var defaultValType=4;
 
-d3.csv("data/school_reg_data.csv", function(data) {
+d3.csv("data/2012_Schueler_Stadtteil.csv", function(data) {
 	amounts=data;
+	console.log("lade Daten 2012_Schueler_Stadtteil.csv");
 	draw();
 });	
 
-d3.json("data/geo.json", function(data) {
+d3.csv("data/2012_Schueler_Insgesamt.csv", function(data) {
+	amounts2=data;
+
+});	
+
+d3.json("data/cologne.json", function(data) {
 	geo=data;
+		console.log("lade Daten cologe.json");
 	draw();
 });
-
+//valType  1  --> GRUNDSCHULE
+//valType  2  --> HAUPTSCHULE
+//valType  3  --> REALSCHULE
+//valType  4  --> GYMNASIUM
+//valType  0  --> GESAMTSCHULE
 function draw(valType) {
-	if ( geo==null || amounts==null)
-		return;
-
+		console.log("bin in draw");
+//Funktion geht zum ersten mal durch 
+//und wird abgebrochen, weil cologne.json noch nicht geladen ist
+	if ( geo==null || amounts==null){
+		console.log("bin geo==null oder amounts==null");
+		console.log("geo: " + geo);
+		console.log("amounts: " + amounts);
+		return;}
+	//beim zweiten Durchlauf sind alle Daten durch d3 geladen 
+	//die Zeile verstehe ich noch nicht
 	valType = valType===undefined?defaultValType:valType;
-	
 	maxamount = 0;
 	minamount = -1;
-	amounts.forEach(function(a) { 
+	//goes through each 86 Stadtteile of cologne.json 
+	amounts.forEach(function(a) { 			
+		//loops from 0 to 85
+
 		for (i=0;i<geo.features.length;i++)
-			if (geo.features[i].properties.id==a.id) {
-				geo.features[i].properties.title=geo.features[i].properties.name+", област "+geo.features[i].properties.oblast;			
-				geo.features[i].properties.detska=+a.detska;
-				geo.features[i].properties.uchenici=(+a.osnovno)+(+a.gimnaziq);
+			//and builds 1 of 86 objects if there is a representant in cologne.json
+			if (geo.features[i].properties.NUMMER==a.NUMMER) {
+				geo.features[i].properties.title=geo.features[i].properties.NAME ;			
+				geo.features[i].properties.GRUNDSCHULE=a.GRUNDSCHULE;
+				geo.features[i].properties.HAUPTSCHULE=a.HAUPTSCHULE;
+				geo.features[i].properties.REALSCHULE=a.REALSCHULE;
+				geo.features[i].properties.GYMNASIUM=a.GYMNASIUM;
+				geo.features[i].properties.GESAMTSCHULE=a.GESAMTSCHULE;
+				geo.features[i].properties.ALLE=a.ALLE;
 				if (valType==1)
-					geo.features[i].properties.val=geo.features[i].properties.detska;
+					geo.features[i].properties.val=geo.features[i].properties.GRUNDSCHULE;
 				else
 				if (valType==2)
-					geo.features[i].properties.val=geo.features[i].properties.uchenici;
+					geo.features[i].properties.val=geo.features[i].properties.HAUPTSCHULE;
 				else
-				if (valType==3)
-					geo.features[i].properties.val=geo.features[i].properties.detska/geo.features[i].properties.pop;
+				if (valType==3){
+					geo.features[i].properties.val=geo.features[i].properties.REALSCHULE;
+				}
 				else
-				if (valType==4)
-					geo.features[i].properties.val=geo.features[i].properties.uchenici/geo.features[i].properties.pop;
+				if (valType==4){
+					geo.features[i].properties.val=geo.features[i].properties.GYMNASIUM;
+				}
 				else
 				if (valType==0)
-					geo.features[i].properties.val=geo.features[i].properties.pop;
+					geo.features[i].properties.val=geo.features[i].properties.GESAMTSCHULE;
 
-				if (geo.features[i].properties.val>maxamount && (+a.id!=37 || valType>=3))
+				if (geo.features[i].properties.val>maxamount )
 					maxamount=geo.features[i].properties.val;
 				if (geo.features[i].properties.val<minamount || minamount==-1)
 					minamount=geo.features[i].properties.val;
@@ -86,9 +115,6 @@ function draw(valType) {
 	scaleColor.range(["#FF0000","#FFCC33","#009900"]);
 
 	valColor = function(feature) {
-		if (feature.properties.id==37 && valType<3)
-			return "#006600";
-		else
 		if (feature.properties.val)
 			return scaleColor(feature.properties.val);
 		else
@@ -103,27 +129,35 @@ function draw(valType) {
 	        return {fillColor:valColor(feature), 'color':'white', opacity:0.4, fillOpacity:0.5, weight:1};
 	},
 	onEachFeature: function (feature, layer) {
+		var weiterfuehrend =  (feature.properties.ALLE - feature.properties.GRUNDSCHULE)
 		if (feature.properties && feature.properties.title) {
 			var text = "<h3>"+feature.properties.title+"</h3>"+
-				"Население: <b>"+feature.properties.pop+"</b>";
+				"alle Schüler weiterführende Schulen: <b>"+weiterfuehrend +"</b>";
 			if (feature.properties.val) {
-				text+="<br/>Деца в детски градини: <b>"+feature.properties.detska+" / "+
-Math.round(feature.properties.detska/feature.properties.pop*100000)/1000+"%</b>"+
-					"<br/>Деца в основно и средно училище: <b>"+feature.properties.uchenici+" / "+
-Math.round(feature.properties.uchenici/feature.properties.pop*100000)/1000+"%</b>";
+				text+="<br/>Hauptschüler: <b>"+feature.properties.HAUPTSCHULE+" / "+
+Math.round(feature.properties.HAUPTSCHULE/weiterfuehrend*100)+"%</b>"+
+					"<br/>Realschüler: <b>"+feature.properties.REALSCHULE+" / "+
+Math.round(feature.properties.REALSCHULE/weiterfuehrend*100)+"%</b>"+
+					"<br/>Gymnasiasten: <b>"+feature.properties.GYMNASIUM+" / "+
+Math.round(feature.properties.GYMNASIUM/weiterfuehrend*100)+"%</b>"+
+					"<br/>Gesamtschüler: <b>"+feature.properties.GESAMTSCHULE+" / "+
+Math.round(feature.properties.GESAMTSCHULE/weiterfuehrend*100)+"%</b>";
 			} else
 				text+="<br/>Няма данни";
 			layer.bindPopup(text);
 			layer.on("mouseover", featureMouseOver);
 			layer.on("mouseout", featureMouseOut);
 
-			layer.title=feature.properties.name;
+			layer.title=feature.properties.NAME;
 			feature.layer=layer;
 		    }
 		}
 	}).addTo(map);
+//End Choropleth
 
-	var yAxis = valType<3?yAxis1:yAxis2;
+//Start Balkediagramm
+	//var yAxis = valType<3?yAxis1:yAxis2;
+	var yAxis = yAxis1;
 
 	x.domain(geo.features.map(function(f) { return f.properties.title; }));
 	yAxis.ticks(8).scale().domain([0,maxamount]);
@@ -176,7 +210,7 @@ Math.round(feature.properties.uchenici/feature.properties.pop*100000)/1000+"%</b
 		.attr("transform", function(f) { return "translate(0,"+(yAxis.scale()(f.properties.val)+margin.top+5)+")" }) 
 		.text(function(f) { return valType<3?f.properties.val:formatPercent(f.properties.val); });
 }
-
+//End Balkendiagramm
 function featureMouseOver(o) {
 	if (!o)
 		return;
@@ -237,6 +271,7 @@ function featureClick(o) {
 		layer.openPopup();
 }
 
+//Start Leafelet
 L.Control.DataSwitch = L.Control.extend({
 	options: {
 		collapsed: true,
@@ -272,31 +307,36 @@ L.Control.DataSwitch = L.Control.extend({
 });
 
 map = L.map('map', {
-		maxBounds:new L.LatLngBounds(new L.LatLng(40.2711, 20.4565),new L.LatLng(45.1123, 30.3442)),
-		minZoom:7,
-		maxZoom:11,
+		maxBounds:new L.LatLngBounds(new L.LatLng(50.76426, 6.58424),new L.LatLng(51.1212, 7.30865)),
+				minZoom:9,
+		maxZoom:10,
+		//Fullscreen 
 		fullscreenControl: true,
 		fullscreenControlOptions: {
-			title:"На цял екран",
+			title:"Bildschirmansicht",
 			forceSeparateButton:true
 		},
-		center:new L.LatLng(42.6917, 25.4004),
-		zoom:7
+		center:new L.LatLng(50.94318, 6.94628), 
+		zoom:13
 	});
 map.on('exitFullscreen', function(){
-	setTimeout(function() {map.setZoom(7);},500);
+	setTimeout(function() {map.setZoom(13);},500);
 });
 
-L.tileLayer('http://{s}.tile.cloudmade.com/ef311d0827c74ca7a2e1bb68614b7ad3/98103/256/{z}/{x}/{y}.png', {
-	attribution: 'Map data &copy; 2011 OpenStreetMap contributors, Imagery &copy; 2012 CloudMade'
+L.tileLayer('https://{s}.tiles.mapbox.com/v3/{id}/{z}/{x}/{y}.png', {id: 'examples.map-20v6611k',
+	attribution: 'Map data &copy; 2011 OpenStreetMap'
 }).addTo(map);
 
 map.addControl(new L.Control.DataSwitch([
-	{"title":"Деца в детски градини",src:"res/img/con_kin.png",type:1},
-	{"title":"Ученици в начални и средни училища",src:"res/img/con_sch.png",type:2},
-	{"title":"Деца в детски градини спрямо населението ",src:"res/img/con_kinperc.png",type:3},
-	{"title":"Ученици спрямо населението",src:"res/img/con_schperc.png",type:4},
-	{"title":"Население по общини (преброяване 2011)",src:"res/img/con_pop.png",type:0}],
+	{"title":"GRUNDSCHULE",src:"res/img/con_kin.png",type:1},
+	{"title":"HAUPTSCHULE",src:"res/img/hauptschule.png",type:2},
+	{"title":"REALSCHULE",src:"res/img/realschule.png",type:3},
+	{"title":"GYMNASIUM",src:"res/img/gymnasium.png",type:4},
+	{"title":"GESAMTSCHULE",src:"res/img/con_pop.png",type:0}],
 	{"default":4}));
 $("div[id^='switch'] img").tipsy({gravity: 'e',fade: true, html:true}); 
+
+
+
+
 
